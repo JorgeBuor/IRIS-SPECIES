@@ -26,7 +26,7 @@ def load_data():
     df = pd.read_csv("Iris.csv")
     return df
 
-# ── Entrenamiento del modelo ─────────────────────────────────────────────────
+# ── Entrenamiento del modelo (sobre dataset completo, una sola vez) ──────────
 @st.cache_resource
 def train_model(df):
     feature_cols = ["SepalLengthCm", "SepalWidthCm", "PetalLengthCm", "PetalWidthCm"]
@@ -54,54 +54,50 @@ def train_model(df):
         "Recall":    recall_score(y_test, y_pred, average="weighted"),
         "F1 Score":  f1_score(y_test, y_pred, average="weighted"),
     }
-
     cm = confusion_matrix(y_test, y_pred)
-
     return clf, scaler, le, metrics, cm
 
-df = load_data()
+df           = load_data()
 model, scaler, le, metrics, cm = train_model(df)
-
 feature_cols  = ["SepalLengthCm", "SepalWidthCm", "PetalLengthCm", "PetalWidthCm"]
-species_names = le.classes_          # ['Iris-setosa', 'Iris-versicolor', 'Iris-virginica']
+feat_labels   = ["Sepal Length (cm)", "Sepal Width (cm)", "Petal Length (cm)", "Petal Width (cm)"]
+species_names = le.classes_
 
 # ── Filtros interactivos ─────────────────────────────────────────────────────
 st.sidebar.header("🔎 Filters")
 
 species_filter = st.sidebar.multiselect(
-    "Species (exploration view)",
+    "Species (exploration & 3D view)",
     options=list(species_names),
     default=list(species_names)
 )
-
 show_grid = st.sidebar.checkbox("Show grid on charts", value=True)
 palette   = st.sidebar.selectbox("Color palette", ["muted", "Set2", "pastel", "dark"])
 
-import matplotlib as mpl  # noqa: E402
 colors = plt.get_cmap(
     {"muted": "tab10", "Set2": "Set2", "pastel": "Pastel1", "dark": "Dark2"}[palette]
 ).colors
 
-# ── Filtrado del dataframe ───────────────────────────────────────────────────
+# ── Dataset filtrado (reactivo a species_filter) ─────────────────────────────
 df_f = df[df["Species"].isin(species_filter)].copy()
 
 if df_f.empty:
     st.warning("No data available for the selected filters.")
     st.stop()
 
+# ── Mapa de color por especie (consistente en todos los tabs) ────────────────
+species_color = {sp: colors[i % len(colors)] for i, sp in enumerate(species_names)}
+
 # ── KPI Cards ────────────────────────────────────────────────────────────────
 st.subheader("📊 Model Performance Metrics")
-
 col1, col2, col3, col4, col5 = st.columns(5)
-col1.metric("Accuracy",       f"{metrics['Accuracy']:.2%}")
-col2.metric("Precision",      f"{metrics['Precision']:.2%}")
-col3.metric("Recall",         f"{metrics['Recall']:.2%}")
-col4.metric("F1 Score",       f"{metrics['F1 Score']:.2%}")
-col5.metric("Training Samples", f"{int(len(df) * 0.8)}")
+col1.metric("Accuracy",        f"{metrics['Accuracy']:.2%}")
+col2.metric("Precision",       f"{metrics['Precision']:.2%}")
+col3.metric("Recall",          f"{metrics['Recall']:.2%}")
+col4.metric("F1 Score",        f"{metrics['F1 Score']:.2%}")
+col5.metric("Training samples", f"{int(len(df) * 0.8)}")
 
 st.divider()
-
-# ── Visualizaciones ──────────────────────────────────────────────────────────
 st.subheader("📈 Analysis")
 
 tab1, tab2, tab3, tab4 = st.tabs([
@@ -112,14 +108,13 @@ tab1, tab2, tab3, tab4 = st.tabs([
 ])
 
 # ────────────────────────────────────────────────────────────────────────────
-# TAB 1: Model Performance — Confusion Matrix + Metrics bar chart
+# TAB 1 — Confusion Matrix + Metrics bar chart
 # ────────────────────────────────────────────────────────────────────────────
 with tab1:
     short_names = [s.replace("Iris-", "") for s in species_names]
-
     fig, axes = plt.subplots(1, 2, figsize=(13, 5))
 
-    # ── Confusion Matrix ─────────────────────────────────────────────────────
+    # Confusion Matrix
     im = axes[0].imshow(cm, interpolation="nearest", cmap="Blues")
     plt.colorbar(im, ax=axes[0])
     axes[0].set_xticks(np.arange(len(short_names)))
@@ -131,28 +126,20 @@ with tab1:
     axes[0].set_ylabel("True Label", fontsize=11)
     for i in range(len(short_names)):
         for j in range(len(short_names)):
-            axes[0].text(
-                j, i, str(cm[i, j]),
+            axes[0].text(j, i, str(cm[i, j]),
                 ha="center", va="center", fontsize=14, fontweight="bold",
-                color="white" if cm[i, j] > cm.max() / 2 else "black"
-            )
+                color="white" if cm[i, j] > cm.max() / 2 else "black")
 
-    # ── Metrics bar chart ────────────────────────────────────────────────────
+    # Metrics bar chart
     metric_names  = list(metrics.keys())
     metric_values = [v * 100 for v in metrics.values()]
     bar_colors    = [colors[i % len(colors)] for i in range(len(metric_names))]
-
-    bars = axes[1].bar(
-        metric_names, metric_values,
-        color=bar_colors, edgecolor="white", width=0.5, alpha=0.88
-    )
+    bars = axes[1].bar(metric_names, metric_values,
+                       color=bar_colors, edgecolor="white", width=0.5, alpha=0.88)
     for bar in bars:
-        axes[1].text(
-            bar.get_x() + bar.get_width() / 2,
-            bar.get_height() + 0.3,
-            f"{bar.get_height():.2f}%",
-            ha="center", va="bottom", fontsize=10, fontweight="bold"
-        )
+        axes[1].text(bar.get_x() + bar.get_width() / 2,
+            bar.get_height() + 0.3, f"{bar.get_height():.2f}%",
+            ha="center", va="bottom", fontsize=10, fontweight="bold")
     axes[1].set_title("Classification Metrics (Random Forest)", fontsize=13, fontweight="bold")
     axes[1].set_ylabel("Score (%)", fontsize=11)
     axes[1].set_ylim(0, 112)
@@ -161,9 +148,10 @@ with tab1:
 
     plt.tight_layout()
     st.pyplot(fig)
+    plt.close(fig)
 
 # ────────────────────────────────────────────────────────────────────────────
-# TAB 2: Predicción interactiva + 3D Scatter Plot
+# TAB 2 — Predicción + 3D Scatter (reactivo a species_filter y palette)
 # ────────────────────────────────────────────────────────────────────────────
 with tab2:
     st.markdown("### Enter flower measurements to predict its species")
@@ -187,25 +175,23 @@ with tab2:
     for i, (sp, prob) in enumerate(zip(species_names, pred_proba)):
         prob_cols[i].metric(sp.replace("Iris-", ""), f"{prob:.1%}")
 
-    # ── 3D Scatter Plot ──────────────────────────────────────────────────────
+    # ── 3D Scatter — usa df_f para respetar el filtro de especies ────────────
     fig = plt.figure(figsize=(10, 7))
     ax  = fig.add_subplot(111, projection="3d")
 
-    for i, sp in enumerate(species_names):
-        mask = df["Species"] == sp
-        sub  = df[mask]
+    for sp in species_filter:
+        mask = df_f["Species"] == sp
+        sub  = df_f[mask]
         ax.scatter(
             sub["SepalLengthCm"], sub["SepalWidthCm"], sub["PetalLengthCm"],
-            c=[colors[i % len(colors)]], label=sp.replace("Iris-", ""),
+            c=[species_color[sp]], label=sp.replace("Iris-", ""),
             alpha=0.55, s=40, edgecolors="white", linewidth=0.3
         )
 
-    # Nuevo punto
-    ax.scatter(
-        [sepal_length], [sepal_width], [petal_length],
+    # Nueva muestra
+    ax.scatter([sepal_length], [sepal_width], [petal_length],
         c="red", s=220, marker="*", label="New Sample",
-        edgecolors="darkred", linewidth=1.2, zorder=5
-    )
+        edgecolors="darkred", linewidth=1.2, zorder=5)
 
     ax.set_xlabel("Sepal Length (cm)", fontsize=9, labelpad=8)
     ax.set_ylabel("Sepal Width (cm)",  fontsize=9, labelpad=8)
@@ -213,43 +199,37 @@ with tab2:
     ax.set_title("3D Scatter — New Sample vs Dataset",
                  fontsize=13, fontweight="bold", pad=15)
     ax.legend(title="Species", loc="upper left", fontsize=9)
+    ax.grid(show_grid)
 
     st.pyplot(fig)
+    plt.close(fig)
 
 # ────────────────────────────────────────────────────────────────────────────
-# TAB 3: Data Exploration — Histogramas + Scatter Matrix
+# TAB 3 — Histogramas + Scatter Matrix (reactivos a species_filter y palette)
 # ────────────────────────────────────────────────────────────────────────────
 with tab3:
-    # ── Histogramas de distribución por feature ──────────────────────────────
+    # Histogramas
     fig, axes = plt.subplots(2, 2, figsize=(13, 9))
     axes = axes.flatten()
 
-    feat_labels = ["Sepal Length (cm)", "Sepal Width (cm)",
-                   "Petal Length (cm)", "Petal Width (cm)"]
-
     for idx, (col, label) in enumerate(zip(feature_cols, feat_labels)):
-        for i, sp in enumerate(species_filter):
+        for sp in species_filter:
             sub = df_f[df_f["Species"] == sp]
-            axes[idx].hist(
-                sub[col], bins=15, alpha=0.65,
-                color=colors[i % len(colors)],
-                label=sp.replace("Iris-", ""),
-                edgecolor="white"
-            )
+            axes[idx].hist(sub[col], bins=15, alpha=0.65,
+                color=species_color[sp],
+                label=sp.replace("Iris-", ""), edgecolor="white")
         axes[idx].set_title(f"Distribution: {label}", fontsize=11, fontweight="bold")
         axes[idx].set_xlabel(label, fontsize=10)
         axes[idx].set_ylabel("Frequency", fontsize=10)
         axes[idx].legend(title="Species", fontsize=8)
         axes[idx].grid(show_grid, alpha=0.4)
 
-    plt.suptitle("Feature Distributions by Species", fontsize=14,
-                 fontweight="bold", y=1.01)
+    plt.suptitle("Feature Distributions by Species", fontsize=14, fontweight="bold", y=1.01)
     plt.tight_layout()
     st.pyplot(fig)
+    plt.close(fig)
 
     st.divider()
-
-    # ── Scatter Matrix ───────────────────────────────────────────────────────
     st.markdown("#### 🔵 Feature Scatter Matrix")
 
     n = len(feature_cols)
@@ -261,28 +241,29 @@ with tab3:
         for c_idx in range(n):
             ax = axes2[r][c_idx]
             if r == c_idx:
-                for i, sp in enumerate(species_filter):
+                for sp in species_filter:
                     sub = df_f[df_f["Species"] == sp]
                     ax.hist(sub[feature_cols[r]], bins=12, alpha=0.65,
-                            color=colors[i % len(colors)], edgecolor="white")
+                            color=species_color[sp], edgecolor="white")
             else:
-                for i, sp in enumerate(species_filter):
+                for sp in species_filter:
                     sub = df_f[df_f["Species"] == sp]
                     ax.scatter(sub[feature_cols[c_idx]], sub[feature_cols[r]],
-                               color=colors[i % len(colors)], alpha=0.5, s=12)
+                               color=species_color[sp], alpha=0.5, s=12)
             ax.tick_params(labelsize=6)
+            ax.grid(show_grid, alpha=0.3)
             if r == n - 1:
                 ax.set_xlabel(short_feat[c_idx], fontsize=8)
             if c_idx == 0:
                 ax.set_ylabel(short_feat[r], fontsize=8)
 
-    plt.suptitle("Scatter Matrix — Iris Features", fontsize=13,
-                 fontweight="bold", y=1.01)
+    plt.suptitle("Scatter Matrix — Iris Features", fontsize=13, fontweight="bold", y=1.01)
     plt.tight_layout()
     st.pyplot(fig2)
+    plt.close(fig2)
 
 # ────────────────────────────────────────────────────────────────────────────
-# TAB 4: Raw data
+# TAB 4 — Raw Data
 # ────────────────────────────────────────────────────────────────────────────
 with tab4:
     st.write(f"Showing **{len(df_f)}** records matching the current filters.")
