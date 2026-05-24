@@ -18,7 +18,7 @@ st.set_page_config(
 )
 
 st.title("🌸 Iris Species Classification Dashboard")
-st.caption("Data Mining — Universidad de la Costa | Authors: Jorge Estiiven Burgos Ortega · Diego Navarro Gómez")
+st.caption("Data Mining — Universidad de la Costa | Author: Jorge Estiiven Burgos Ortega")
 
 # ── Carga del dataset ────────────────────────────────────────────────────────
 @st.cache_data
