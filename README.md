@@ -81,7 +81,7 @@ This project applies a complete data mining pipeline to the classic Iris dataset
 ## Deployment
 
 The dashboard is deployed on **Streamlit Cloud**:  
-🔗 *(add your Streamlit Cloud URL here after deployment)*
+🔗 https://iris-species-7qkosz3zr5cxpy7qut6bif.streamlit.app/
 
 ---
 
