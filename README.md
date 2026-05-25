@@ -1,7 +1,7 @@
 # 🌸 Iris Species Classification Dashboard
 
 **Data Mining — Universidad de la Costa**  
-**Author:** Jorge Estiiven Burgos Ortega
+**Author:** Jorge Estiven Burgos Ortega
 
 ---
 
